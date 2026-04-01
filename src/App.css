@@ -23,14 +23,29 @@
 
 .top-bar-right {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
 }
 
 .moon-phase {
   font-size: 13px;
   color: #aaa;
   white-space: nowrap;
+}
+
+.houses-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #aaa;
+  cursor: pointer;
+  user-select: none;
+}
+
+.houses-toggle input {
+  accent-color: #ff8844;
 }
 
 .zodiac-select {
@@ -75,18 +90,24 @@
   user-select: none;
 }
 
-.time-display {
-  font-size: 18px;
+.time-input {
+  font-size: 16px;
   font-weight: 500;
   color: #ffffff;
   font-family: 'SF Mono', 'Consolas', monospace;
   letter-spacing: 2px;
-  padding: 4px 14px;
+  padding: 4px 12px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  min-width: 70px;
+  width: 100px;
   text-align: center;
+  outline: none;
+}
+
+.time-input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .arrow-btn-sm {
@@ -121,36 +142,24 @@
   transform: scale(0.95);
 }
 
-.date-display {
-  position: relative;
-  font-size: 22px;
+.date-input {
+  font-size: 20px;
   font-weight: 500;
   color: #ffffff;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  padding: 8px 20px;
+  letter-spacing: 1px;
+  padding: 8px 16px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.2s ease;
-  min-width: 260px;
   text-align: center;
+  width: 200px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  outline: none;
 }
 
-.date-display:hover {
+.date-input:focus {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.hidden-date-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  pointer-events: none;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* Main layout: chart + panel side by side */
@@ -229,9 +238,9 @@
     height: 40px;
   }
 
-  .date-display {
+  .date-input {
     font-size: 16px;
-    padding: 6px 14px;
-    min-width: 180px;
+    padding: 6px 12px;
+    width: 140px;
   }
 }

@@ -37,17 +37,13 @@ const DEFAULT_LON = 37.6173;
 export default function GeoChart() {
   const [date, setDate] = useState(() => new Date());
   const [zodiacSystem, setZodiacSystem] = useState<ZodiacSystem>('tropical');
+  const [showHouses, setShowHouses] = useState(false);
   const [positions, setPositions] = useState<PlanetPosition[]>([]);
   const displayLonsRef = useRef<number[]>([]);
   const [displayLons, setDisplayLons] = useState<number[]>([]);
   const displayCuspsRef = useRef<number[]>([]);
   const [displayCusps, setDisplayCusps] = useState<number[]>([]);
-  const displayAscRef = useRef(0);
-  const displayMcRef = useRef(0);
-  const [displayAsc, setDisplayAsc] = useState(0);
-  const [displayMc, setDisplayMc] = useState(0);
   const animRef = useRef<number>(0);
-  const dateInputRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
 
   const moonPhase = calculateMoonPhase(date);
@@ -63,18 +59,12 @@ export default function GeoChart() {
     if (positions.length === 0) return;
     const targetLons = positions.map(p => p.longitude);
     const targetCusps = houses.cusps;
-    const targetAsc = houses.ascendant;
-    const targetMc = houses.mc;
 
     if (!initializedRef.current) {
       displayLonsRef.current = [...targetLons];
       setDisplayLons([...targetLons]);
       displayCuspsRef.current = [...targetCusps];
       setDisplayCusps([...targetCusps]);
-      displayAscRef.current = targetAsc;
-      displayMcRef.current = targetMc;
-      setDisplayAsc(targetAsc);
-      setDisplayMc(targetMc);
       initializedRef.current = true;
       return;
     }
@@ -83,10 +73,6 @@ export default function GeoChart() {
     const diffLons = startLons.map((s, i) => angleDiff(s, targetLons[i]));
     const startCusps = [...displayCuspsRef.current];
     const diffCusps = startCusps.map((s, i) => angleDiff(s, targetCusps[i]));
-    const startAsc = displayAscRef.current;
-    const diffAsc = angleDiff(startAsc, targetAsc);
-    const startMc = displayMcRef.current;
-    const diffMc = angleDiff(startMc, targetMc);
 
     cancelAnimationFrame(animRef.current);
     const startTime = performance.now();
@@ -104,13 +90,6 @@ export default function GeoChart() {
       const curCusps = startCusps.map((s, i) => norm(s + diffCusps[i] * ease));
       displayCuspsRef.current = curCusps;
       setDisplayCusps([...curCusps]);
-
-      const curAsc = norm(startAsc + diffAsc * ease);
-      const curMc = norm(startMc + diffMc * ease);
-      displayAscRef.current = curAsc;
-      displayMcRef.current = curMc;
-      setDisplayAsc(curAsc);
-      setDisplayMc(curMc);
 
       if (t < 1) animRef.current = requestAnimationFrame(tick);
     }
@@ -136,6 +115,8 @@ export default function GeoChart() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.key === 'ArrowLeft') changeDay(-1);
       else if (e.key === 'ArrowRight') changeDay(1);
     };
@@ -143,31 +124,44 @@ export default function GeoChart() {
     return () => window.removeEventListener('keydown', handler);
   }, [changeDay]);
 
-  const handleDateDblClick = () => dateInputRef.current?.showPicker();
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val) {
-      const [y, m, d] = val.split('-').map(Number);
-      setDate(prev => {
-        const next = new Date(prev);
-        next.setFullYear(y, m - 1, d);
-        return next;
-      });
-    }
+  const formatDateEU = (d: Date) => {
+    const day = String(d.getDate()).padStart(2, '0');
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}.${m}.${d.getFullYear()}`;
   };
-
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const formatTime = (d: Date) =>
     `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-  const formatInputDate = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+  const [dateText, setDateText] = useState(formatDateEU(date));
+  const [timeText, setTimeText] = useState(formatTime(date));
+
+  // Keep text in sync when date changes via arrows/keyboard
+  useEffect(() => {
+    setDateText(formatDateEU(date));
+    setTimeText(formatTime(date));
+  }, [date]);
+
+  const commitDate = (val: string) => {
+    const match = val.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+    if (match) {
+      const [, dd, mm, yyyy] = match.map(Number);
+      const d = new Date(date);
+      d.setFullYear(yyyy, mm - 1, dd);
+      if (!isNaN(d.getTime())) setDate(d);
+    }
+  };
+
+  const commitTime = (val: string) => {
+    const match = val.match(/^(\d{1,2}):(\d{2})$/);
+    if (match) {
+      const [, hh, mm] = match.map(Number);
+      if (hh >= 0 && hh < 24 && mm >= 0 && mm < 60) {
+        const d = new Date(date);
+        d.setHours(hh, mm);
+        setDate(d);
+      }
+    }
   };
 
   const size = 800;
@@ -183,6 +177,15 @@ export default function GeoChart() {
   const orbitStep = planetCount > 1 ? (orbitEnd - midR) / (planetCount - 1) : 0;
   const orbitStart = midR;
   const planetR = Math.min(9, orbitStep * 0.4);
+
+  // Convert ecliptic longitude to screen angle (radians)
+  // Houses off: clockwise, Aries at top (orrery style)
+  // Houses on: counter-clockwise, ASC at left (natal chart style)
+  const animAsc = displayCusps.length ? displayCusps[0] : houses.ascendant;
+  const toAngle = (lon: number) =>
+    showHouses
+      ? (-lon + animAsc + 180) * (Math.PI / 180)
+      : (lon - 90) * (Math.PI / 180);
 
   const formatAstroPos = (lon: number) => {
     const normLon = ((lon % 360) + 360) % 360;
@@ -201,31 +204,39 @@ export default function GeoChart() {
         <div className="datetime-controls">
           <div className="date-controls">
             <button className="arrow-btn" onClick={() => changeDay(-1)}>&#9664;</button>
-            <div className="date-display" onDoubleClick={handleDateDblClick}>
-              {formatDate(date)}
-              <input
-                ref={dateInputRef}
-                type="date"
-                className="hidden-date-input"
-                value={formatInputDate(date)}
-                onChange={handleDateChange}
-              />
-            </div>
+            <input
+              className="date-input"
+              value={dateText}
+              onChange={e => setDateText(e.target.value)}
+              onBlur={e => commitDate(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') commitDate((e.target as HTMLInputElement).value); }}
+              placeholder="dd.mm.yyyy"
+            />
             <button className="arrow-btn" onClick={() => changeDay(1)}>&#9654;</button>
           </div>
-          <div className="time-controls">
-            <button className="arrow-btn arrow-btn-sm" onClick={() => changeHour(-1)}>&#9664;</button>
-            <div className="time-display">{formatTime(date)}</div>
-            <button className="arrow-btn arrow-btn-sm" onClick={() => changeHour(1)}>&#9654;</button>
-          </div>
+          {showHouses && (
+            <div className="time-controls">
+              <button className="arrow-btn arrow-btn-sm" onClick={() => changeHour(-1)}>&#9664;</button>
+              <input
+                className="time-input"
+                value={timeText}
+                onChange={e => setTimeText(e.target.value)}
+                onBlur={e => commitTime(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') commitTime((e.target as HTMLInputElement).value); }}
+                placeholder="HH:mm"
+              />
+              <button className="arrow-btn arrow-btn-sm" onClick={() => changeHour(1)}>&#9654;</button>
+            </div>
+          )}
         </div>
         <div className="top-bar-right">
           <span className="moon-phase">{moonPhase.emoji} {moonPhase.name} ({Math.round(moonPhase.illumination)}%)</span>
-          <select
-            className="zodiac-select"
-            value={zodiacSystem}
-            onChange={e => setZodiacSystem(e.target.value as ZodiacSystem)}
-          >
+          <label className="houses-toggle">
+            <input type="checkbox" checked={showHouses} onChange={e => setShowHouses(e.target.checked)} />
+            Дома
+          </label>
+          <select className="zodiac-select" value={zodiacSystem}
+            onChange={e => setZodiacSystem(e.target.value as ZodiacSystem)}>
             <option value="tropical">Тропический</option>
             <option value="sidereal">Сидерический</option>
           </select>
@@ -254,27 +265,30 @@ export default function GeoChart() {
 
           {/* Zodiac sectors */}
           {zodiacSigns.map((sign, i) => {
-            const startAngle = (i * 30 - 90) * (Math.PI / 180);
-            const endAngle = ((i + 1) * 30 - 90) * (Math.PI / 180);
+            const startAngle = toAngle(i * 30);
+            const endAngle = toAngle((i + 1) * 30);
             const color = zodiacColors[i];
             const x1o = cx + outerR * Math.cos(startAngle);
             const y1o = cy + outerR * Math.sin(startAngle);
             const x2o = cx + outerR * Math.cos(endAngle);
             const y2o = cy + outerR * Math.sin(endAngle);
-            const midAngle = ((i * 30 + 15) - 90) * (Math.PI / 180);
+            const midAngle = toAngle(i * 30 + 15);
             const symbolR = outerR - zodiacBandWidth / 2;
             const lx = cx + symbolR * Math.cos(midAngle);
             const ly = cy + symbolR * Math.sin(midAngle);
 
+            const sweep = showHouses ? 0 : 1;
+            const sweepInv = showHouses ? 1 : 0;
+
             return (
               <g key={sign.name}>
                 <path
-                  d={`M ${cx} ${cy} L ${x1o} ${y1o} A ${outerR} ${outerR} 0 0 1 ${x2o} ${y2o} Z`}
+                  d={`M ${cx} ${cy} L ${x1o} ${y1o} A ${outerR} ${outerR} 0 0 ${sweep} ${x2o} ${y2o} Z`}
                   fill={color} fillOpacity={0.06}
                   stroke={color} strokeOpacity={0.15} strokeWidth={0.5}
                 />
                 <path
-                  d={`M ${cx + zodiacInner * Math.cos(startAngle)} ${cy + zodiacInner * Math.sin(startAngle)} L ${x1o} ${y1o} A ${outerR} ${outerR} 0 0 1 ${x2o} ${y2o} L ${cx + zodiacInner * Math.cos(endAngle)} ${cy + zodiacInner * Math.sin(endAngle)} A ${zodiacInner} ${zodiacInner} 0 0 0 ${cx + zodiacInner * Math.cos(startAngle)} ${cy + zodiacInner * Math.sin(startAngle)}`}
+                  d={`M ${cx + zodiacInner * Math.cos(startAngle)} ${cy + zodiacInner * Math.sin(startAngle)} L ${x1o} ${y1o} A ${outerR} ${outerR} 0 0 ${sweep} ${x2o} ${y2o} L ${cx + zodiacInner * Math.cos(endAngle)} ${cy + zodiacInner * Math.sin(endAngle)} A ${zodiacInner} ${zodiacInner} 0 0 ${sweepInv} ${cx + zodiacInner * Math.cos(startAngle)} ${cy + zodiacInner * Math.sin(startAngle)}`}
                   fill={color} fillOpacity={0.1}
                   stroke={color} strokeOpacity={0.2} strokeWidth={0.5}
                 />
@@ -299,11 +313,13 @@ export default function GeoChart() {
           <circle cx={cx} cy={cy} r={zodiacInner} fill="none" stroke="#ffffff" strokeOpacity={0.08} strokeWidth={0.5} />
 
           {/* House cusps */}
-          {(displayCusps.length ? displayCusps : houses.cusps).map((cusp, i) => {
-            const angle = (cusp - 90) * (Math.PI / 180);
+          {showHouses && (displayCusps.length ? displayCusps : houses.cusps).map((cusp, i) => {
+            const angle = toAngle(cusp);
             const isAxis = i === 0 || i === 3 || i === 6 || i === 9;
+            const axisLabel: Record<number, string> = { 0: 'ASC', 3: 'IC', 6: 'DSC', 9: 'MC' };
             const innerEnd = earthR + 4;
-            const labelR = earthR + 14;
+            const houseNumR = earthR + 14;
+            const axisLabelR = zodiacInner - 10;
             return (
               <g key={`house-${i}`}>
                 <line
@@ -312,13 +328,13 @@ export default function GeoChart() {
                   x2={cx + zodiacInner * Math.cos(angle)}
                   y2={cy + zodiacInner * Math.sin(angle)}
                   stroke={isAxis ? '#ff8844' : '#8888aa'}
-                  strokeOpacity={isAxis ? 0.5 : 0.2}
-                  strokeWidth={isAxis ? 1.2 : 0.5}
+                  strokeOpacity={isAxis ? 0.9 : 0.5}
+                  strokeWidth={isAxis ? 2 : 1}
                   strokeDasharray={isAxis ? 'none' : '3 4'}
                 />
                 <text
-                  x={cx + labelR * Math.cos(angle)}
-                  y={cy + labelR * Math.sin(angle)}
+                  x={cx + houseNumR * Math.cos(angle)}
+                  y={cy + houseNumR * Math.sin(angle)}
                   textAnchor="middle" dominantBaseline="central"
                   fill={isAxis ? '#ff8844' : '#8888aa'}
                   fontSize={7} fontWeight={isAxis ? '700' : '400'}
@@ -326,30 +342,20 @@ export default function GeoChart() {
                 >
                   {HOUSE_LABELS[i]}
                 </text>
+                {isAxis && (
+                  <text
+                    x={cx + axisLabelR * Math.cos(angle)}
+                    y={cy + axisLabelR * Math.sin(angle)}
+                    textAnchor="middle" dominantBaseline="central"
+                    fill="#ff8844" fontSize={8} fontWeight="700" opacity={0.7}
+                  >
+                    {axisLabel[i]}
+                  </text>
+                )}
               </g>
             );
           })}
 
-          {/* ASC / MC labels on the edge */}
-          {[
-            { label: 'ASC', lon: displayAsc || houses.ascendant },
-            { label: 'MC', lon: displayMc || houses.mc },
-            { label: 'DSC', lon: ((displayAsc || houses.ascendant) + 180) % 360 },
-            { label: 'IC', lon: ((displayMc || houses.mc) + 180) % 360 },
-          ].map(({ label, lon }) => {
-            const angle = (lon - 90) * (Math.PI / 180);
-            const r = zodiacInner - 10;
-            return (
-              <text key={label}
-                x={cx + r * Math.cos(angle)}
-                y={cy + r * Math.sin(angle)}
-                textAnchor="middle" dominantBaseline="central"
-                fill="#ff8844" fontSize={8} fontWeight="700" opacity={0.7}
-              >
-                {label}
-              </text>
-            );
-          })}
 
           {/* Orbits */}
           {positions.map((_, i) => {
@@ -372,7 +378,7 @@ export default function GeoChart() {
           {positions.map((planet, i) => {
             const orbitR = orbitStart + i * orbitStep;
             const lon = displayLons[i] ?? planet.longitude;
-            const angle = (lon - 90) * (Math.PI / 180);
+            const angle = toAngle(lon);
             const px = cx + orbitR * Math.cos(angle);
             const py = cy + orbitR * Math.sin(angle);
             const imgUrl = PLANET_IMAGES[planet.name];
@@ -403,12 +409,13 @@ export default function GeoChart() {
           const degree = `${deg}°${String(min).padStart(2, '0')}'`.padStart(7);
           return `${p.symbol} ${name} ${degree} ${sign.symbol} ${sign.name}\n`;
         }).join('')}
-{(() => {
-  const { deg: aDeg, min: aMin, sign: aSign } = formatAstroPos(displayAsc || houses.ascendant);
-  const { deg: mDeg, min: mMin, sign: mSign } = formatAstroPos(displayMc || houses.mc);
+{showHouses ? (() => {
+  const cusps = displayCusps.length ? displayCusps : houses.cusps;
+  const { deg: aDeg, min: aMin, sign: aSign } = formatAstroPos(cusps[0]);
+  const { deg: mDeg, min: mMin, sign: mSign } = formatAstroPos(cusps[9]);
   return `ASC       ${aDeg}°${String(aMin).padStart(2,'0')}'`.padStart(7) + ` ${aSign.symbol} ${aSign.name}\n` +
          `MC        ${mDeg}°${String(mMin).padStart(2,'0')}'`.padStart(7) + ` ${mSign.symbol} ${mSign.name}\n`;
-})()}</pre>
+})() : ''}</pre>
       </div>
     </div>
   );
