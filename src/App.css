@@ -53,12 +53,46 @@
   color: #e0e0e0;
 }
 
-/* Date Controls */
+/* Date + Time Controls */
+.datetime-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .date-controls {
   display: flex;
   align-items: center;
   gap: 16px;
   user-select: none;
+}
+
+.time-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+}
+
+.time-display {
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  letter-spacing: 2px;
+  padding: 4px 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 70px;
+  text-align: center;
+}
+
+.arrow-btn-sm {
+  font-size: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
 }
 
 .arrow-btn {
@@ -143,8 +177,8 @@
 .geo-chart-svg {
   width: 100%;
   height: 100%;
-  max-width: min(100vw - 200px, 100vh - 80px);
-  max-height: min(100vw - 200px, 100vh - 80px);
+  max-width: min(100vw - 200px, 100vh - 110px);
+  max-height: min(100vw - 200px, 100vh - 110px);
 }
 
 /* Positions panel */

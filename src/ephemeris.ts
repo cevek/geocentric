@@ -372,6 +372,56 @@ export function calculateMoonPhase(date: Date): MoonPhaseInfo {
   return { phase, illumination, name, emoji };
 }
 
+// Houses calculation (Equal House system from Ascendant)
+export interface HouseCusps {
+  ascendant: number;  // ASC - 1st house cusp
+  mc: number;         // MC - 10th house cusp
+  cusps: number[];    // 12 house cusps in degrees
+}
+
+export function calculateHouses(date: Date, lat: number, lon: number, system: ZodiacSystem = 'tropical'): HouseCusps {
+  const JD = toJD(date);
+  const T = (JD - 2451545.0) / 36525.0;
+
+  // Greenwich Mean Sidereal Time (in degrees)
+  let GMST = 280.46061837
+    + 360.98564736629 * (JD - 2451545.0)
+    + 0.000387933 * T * T
+    - T * T * T / 38710000;
+  GMST = normalize(GMST);
+
+  // Local Sidereal Time
+  const LST = normalize(GMST + lon);
+  const LST_rad = LST * DEG;
+
+  // Obliquity of the ecliptic
+  const obliquity = (23.4393 - 0.0130 * T) * DEG;
+
+  // MC (Midheaven) — RAMC = LST, then convert to ecliptic
+  const MC = normalize(Math.atan2(Math.sin(LST_rad), Math.cos(LST_rad) * Math.cos(obliquity)) * RAD);
+
+  // Ascendant
+  const latRad = lat * DEG;
+  const ASC = normalize(Math.atan2(
+    Math.cos(LST_rad),
+    -(Math.sin(LST_rad) * Math.cos(obliquity) + Math.tan(latRad) * Math.sin(obliquity))
+  ) * RAD);
+
+  // Sidereal offset
+  const offset = system === 'sidereal' ? ayanamsa(T) : 0;
+
+  const ascAdj = normalize(ASC - offset);
+  const mcAdj = normalize(MC - offset);
+
+  // Equal house system: each house = ASC + (n * 30°)
+  const cusps: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    cusps.push(normalize(ascAdj + i * 30));
+  }
+
+  return { ascendant: ascAdj, mc: mcAdj, cusps };
+}
+
 export const zodiacSigns = [
   { name: 'Овен', symbol: '♈', start: 0 },
   { name: 'Телец', symbol: '♉', start: 30 },
