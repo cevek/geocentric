@@ -301,11 +301,11 @@ function ayanamsa(T: number): number {
 }
 
 export type ZodiacSystem = 'tropical' | 'sidereal';
-export type AstroSystem = 'western' | 'jyotish';
+export type AstroSystem = 'western' | 'jyotish' | 'sidereal-placidus';
 
 export function calculatePositions(date: Date, astro: AstroSystem = 'western'): PlanetPosition[] {
   const T = centuriesSinceJ2000(date);
-  const offset = astro === 'jyotish' ? ayanamsa(T) : 0;
+  const offset = astro !== 'western' ? ayanamsa(T) : 0;
 
   return planetOrder.map(name => {
     let lon: number;
@@ -451,7 +451,7 @@ export function calculateHouses(date: Date, lat: number, lon: number, astro: Ast
     return normalize(Math.atan2(Math.sin(ra * DEG), Math.cos(ra * DEG) * Math.cos(e)) * RAD);
   }
 
-  const offset = astro === 'jyotish' ? ayanamsa(T) : 0;
+  const offset = astro !== 'western' ? ayanamsa(T) : 0;
   const ascAdj = normalize(ASC - offset);
   const mcAdj = normalize(MC - offset);
 

@@ -269,6 +269,7 @@ export default function GeoChart() {
           <select className="zodiac-select" value={astroSystem}
             onChange={e => setAstroSystem(e.target.value as AstroSystem)}>
             <option value="western">Западная</option>
+            <option value="sidereal-placidus">Сид. Плацидус</option>
             <option value="jyotish">Джйотиш</option>
           </select>
           <select className="zodiac-select" value={settings.utcOffset}
