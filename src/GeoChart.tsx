@@ -1,21 +1,22 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { calculatePositions, zodiacSigns, planetNames, type PlanetPosition } from './ephemeris';
 
-// Local images from public/planets/
+const base = import.meta.env.BASE_URL;
+
 const PLANET_IMAGES: Record<string, string> = {
-  sun: '/planets/sun.png',
-  moon: '/planets/moon.png',
-  mercury: '/planets/mercury.png',
-  venus: '/planets/venus.png',
-  mars: '/planets/mars.png',
-  jupiter: '/planets/jupiter.png',
-  saturn: '/planets/saturn.png',
-  uranus: '/planets/uranus.png',
-  neptune: '/planets/neptune.png',
-  pluto: '/planets/pluto.png',
+  sun: `${base}planets/sun.png`,
+  moon: `${base}planets/moon.png`,
+  mercury: `${base}planets/mercury.png`,
+  venus: `${base}planets/venus.png`,
+  mars: `${base}planets/mars.png`,
+  jupiter: `${base}planets/jupiter.png`,
+  saturn: `${base}planets/saturn.png`,
+  uranus: `${base}planets/uranus.png`,
+  neptune: `${base}planets/neptune.png`,
+  pluto: `${base}planets/pluto.png`,
 };
 
-const EARTH_IMAGE = '/planets/earth.png';
+const EARTH_IMAGE = `${base}planets/earth.png`;
 
 // Zodiac sign colors (element-based)
 const zodiacColors: string[] = [
