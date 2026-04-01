@@ -294,8 +294,17 @@ const planetOrder = [
   'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'
 ];
 
-export function calculatePositions(date: Date): PlanetPosition[] {
+// Lahiri ayanamsa (precession offset for sidereal zodiac)
+// Approximation: ~23°51' at J2000 + ~50.3"/year
+function ayanamsa(T: number): number {
+  return 23.85 + 0.01396 * T * 100; // degrees
+}
+
+export type ZodiacSystem = 'tropical' | 'sidereal';
+
+export function calculatePositions(date: Date, system: ZodiacSystem = 'tropical'): PlanetPosition[] {
   const T = centuriesSinceJ2000(date);
+  const offset = system === 'sidereal' ? ayanamsa(T) : 0;
 
   return planetOrder.map(name => {
     let lon: number;
@@ -307,6 +316,8 @@ export function calculatePositions(date: Date): PlanetPosition[] {
       lon = geocentricLongitude(name, T);
     }
 
+    lon = normalize(lon - offset);
+
     const meta = planetMeta[name];
     return {
       name,
@@ -315,6 +326,50 @@ export function calculatePositions(date: Date): PlanetPosition[] {
       color: meta.color,
     };
   });
+}
+
+// Moon phase calculation
+export interface MoonPhaseInfo {
+  phase: number;      // 0-1 (0=new, 0.5=full)
+  illumination: number; // 0-100%
+  name: string;
+  emoji: string;
+}
+
+export function calculateMoonPhase(date: Date): MoonPhaseInfo {
+  const T = centuriesSinceJ2000(date);
+  const sunLon = sunGeocentricLongitude(T);
+  const moonLon = moonLongitude(T);
+
+  // Phase angle: elongation of Moon from Sun
+  const elongation = normalize(moonLon - sunLon);
+  const phase = elongation / 360; // 0-1
+
+  // Illumination (approximate)
+  const illumination = (1 - Math.cos(elongation * DEG)) / 2 * 100;
+
+  // Phase name
+  let name: string;
+  let emoji: string;
+  if (phase < 0.025 || phase >= 0.975) {
+    name = 'Новолуние'; emoji = '🌑';
+  } else if (phase < 0.225) {
+    name = 'Растущий серп'; emoji = '🌒';
+  } else if (phase < 0.275) {
+    name = 'Первая четверть'; emoji = '🌓';
+  } else if (phase < 0.475) {
+    name = 'Растущая луна'; emoji = '🌔';
+  } else if (phase < 0.525) {
+    name = 'Полнолуние'; emoji = '🌕';
+  } else if (phase < 0.725) {
+    name = 'Убывающая луна'; emoji = '🌖';
+  } else if (phase < 0.775) {
+    name = 'Последняя четверть'; emoji = '🌗';
+  } else {
+    name = 'Убывающий серп'; emoji = '🌘';
+  }
+
+  return { phase, illumination, name, emoji };
 }
 
 export const zodiacSigns = [

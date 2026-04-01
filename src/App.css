@@ -8,15 +8,57 @@
   overflow: hidden;
 }
 
+/* Top bar */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  z-index: 10;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.moon-phase {
+  font-size: 13px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.zodiac-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e0e0e0;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.zodiac-select:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.zodiac-select option {
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
 /* Date Controls */
 .date-controls {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 0;
   user-select: none;
-  flex-shrink: 0;
-  z-index: 10;
 }
 
 .arrow-btn {
@@ -138,9 +180,13 @@
     padding: 8px 12px;
   }
 
+  .top-bar {
+    gap: 8px;
+    padding: 6px 8px;
+  }
+
   .date-controls {
     gap: 8px;
-    padding: 8px 0;
   }
 
   .arrow-btn {

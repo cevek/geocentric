@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { calculatePositions, zodiacSigns, planetNames, type PlanetPosition } from './ephemeris';
+import { calculatePositions, calculateMoonPhase, zodiacSigns, planetNames, type PlanetPosition, type ZodiacSystem } from './ephemeris';
 
 const base = import.meta.env.BASE_URL;
 
@@ -41,19 +41,21 @@ function angleDiff(from: number, to: number): number {
 
 export default function GeoChart() {
   const [date, setDate] = useState(() => new Date());
+  const [zodiacSystem, setZodiacSystem] = useState<ZodiacSystem>('tropical');
   const [positions, setPositions] = useState<PlanetPosition[]>([]);
-  // Store current display longitudes for smooth animation from current visual position
   const displayLonsRef = useRef<number[]>([]);
   const [displayLons, setDisplayLons] = useState<number[]>([]);
   const animRef = useRef<number>(0);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const initializedRef = useRef(false);
 
-  // Calculate positions when date changes
+  const moonPhase = calculateMoonPhase(date);
+
+  // Calculate positions when date or system changes
   useEffect(() => {
-    const newPositions = calculatePositions(date);
+    const newPositions = calculatePositions(date, zodiacSystem);
     setPositions(newPositions);
-  }, [date]);
+  }, [date, zodiacSystem]);
 
   // Animate transitions - always animate from CURRENT visual position
   useEffect(() => {
@@ -173,20 +175,33 @@ export default function GeoChart() {
 
   return (
     <div className="geo-chart-container">
-      {/* Date controls */}
-      <div className="date-controls">
-        <button className="arrow-btn" onClick={() => changeDay(-1)}>&#9664;</button>
-        <div className="date-display" onDoubleClick={handleDateDblClick}>
-          {formatDate(date)}
-          <input
-            ref={dateInputRef}
-            type="date"
-            className="hidden-date-input"
-            value={formatInputDate(date)}
-            onChange={handleDateChange}
-          />
+      {/* Top bar */}
+      <div className="top-bar">
+        <div className="date-controls">
+          <button className="arrow-btn" onClick={() => changeDay(-1)}>&#9664;</button>
+          <div className="date-display" onDoubleClick={handleDateDblClick}>
+            {formatDate(date)}
+            <input
+              ref={dateInputRef}
+              type="date"
+              className="hidden-date-input"
+              value={formatInputDate(date)}
+              onChange={handleDateChange}
+            />
+          </div>
+          <button className="arrow-btn" onClick={() => changeDay(1)}>&#9654;</button>
         </div>
-        <button className="arrow-btn" onClick={() => changeDay(1)}>&#9654;</button>
+        <div className="top-bar-right">
+          <span className="moon-phase">{moonPhase.emoji} {moonPhase.name} ({Math.round(moonPhase.illumination)}%)</span>
+          <select
+            className="zodiac-select"
+            value={zodiacSystem}
+            onChange={e => setZodiacSystem(e.target.value as ZodiacSystem)}
+          >
+            <option value="tropical">Тропический</option>
+            <option value="sidereal">Сидерический</option>
+          </select>
+        </div>
       </div>
 
       <div className="main-layout">
