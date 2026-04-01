@@ -192,7 +192,6 @@ function moonLongitude(T: number): number {
 
   const A1 = normalize(119.75 + 131.849 * T);
   const A2 = normalize(53.09 + 479264.290 * T);
-  const A3 = normalize(313.45 + 481266.484 * T);
 
   // Sum of longitude terms (major terms from ELP2000)
   let Sl = 0;
