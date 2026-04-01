@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { calculatePositions, calculateMoonPhase, calculateHouses, zodiacSigns, planetNames, type PlanetPosition, type ZodiacSystem } from './ephemeris';
+import { calculatePositions, calculateMoonPhase, calculateHouses, zodiacSigns, planetNames, type PlanetPosition, type AstroSystem } from './ephemeris';
 
 const base = import.meta.env.BASE_URL;
 
@@ -78,7 +78,7 @@ export default function GeoChart() {
   const setSettings = (s: GeoSettings) => { setSettingsState(s); saveSettings(s); };
 
   const [date, setDate] = useState(() => new Date()); // always UTC internally
-  const [zodiacSystem, setZodiacSystem] = useState<ZodiacSystem>('tropical');
+  const [astroSystem, setAstroSystem] = useState<AstroSystem>('western');
   const [showHouses, setShowHouses] = useState(false);
   const [positions, setPositions] = useState<PlanetPosition[]>([]);
   const displayLonsRef = useRef<number[]>([]);
@@ -89,13 +89,13 @@ export default function GeoChart() {
   const initializedRef = useRef(false);
 
   const moonPhase = calculateMoonPhase(date);
-  const houses = calculateHouses(date, settings.lat, settings.lon, zodiacSystem);
+  const houses = calculateHouses(date, settings.lat, settings.lon, astroSystem);
   const local = fromUTCDate(date, settings.utcOffset);
 
   useEffect(() => {
-    const newPositions = calculatePositions(date, zodiacSystem);
+    const newPositions = calculatePositions(date, astroSystem);
     setPositions(newPositions);
-  }, [date, zodiacSystem]);
+  }, [date, astroSystem]);
 
   // Animate planets + houses together
   useEffect(() => {
@@ -266,10 +266,10 @@ export default function GeoChart() {
             <input type="checkbox" checked={showHouses} onChange={e => setShowHouses(e.target.checked)} />
             Дома
           </label>
-          <select className="zodiac-select" value={zodiacSystem}
-            onChange={e => setZodiacSystem(e.target.value as ZodiacSystem)}>
-            <option value="tropical">Тропический</option>
-            <option value="sidereal">Сидерический</option>
+          <select className="zodiac-select" value={astroSystem}
+            onChange={e => setAstroSystem(e.target.value as AstroSystem)}>
+            <option value="western">Западная</option>
+            <option value="jyotish">Джйотиш</option>
           </select>
           <select className="zodiac-select" value={settings.utcOffset}
             onChange={e => setSettings({ ...settings, utcOffset: Number(e.target.value) })}>

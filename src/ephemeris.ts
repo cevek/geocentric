@@ -301,10 +301,11 @@ function ayanamsa(T: number): number {
 }
 
 export type ZodiacSystem = 'tropical' | 'sidereal';
+export type AstroSystem = 'western' | 'jyotish';
 
-export function calculatePositions(date: Date, system: ZodiacSystem = 'tropical'): PlanetPosition[] {
+export function calculatePositions(date: Date, astro: AstroSystem = 'western'): PlanetPosition[] {
   const T = centuriesSinceJ2000(date);
-  const offset = system === 'sidereal' ? ayanamsa(T) : 0;
+  const offset = astro === 'jyotish' ? ayanamsa(T) : 0;
 
   return planetOrder.map(name => {
     let lon: number;
@@ -379,7 +380,7 @@ export interface HouseCusps {
   cusps: number[];  // 12 house cusps in degrees
 }
 
-export function calculateHouses(date: Date, lat: number, lon: number, system: ZodiacSystem = 'tropical'): HouseCusps {
+export function calculateHouses(date: Date, lat: number, lon: number, astro: AstroSystem = 'western'): HouseCusps {
   const JD = toJD(date);
   const T = (JD - 2451545.0) / 36525.0;
 
@@ -450,32 +451,38 @@ export function calculateHouses(date: Date, lat: number, lon: number, system: Zo
     return normalize(Math.atan2(Math.sin(ra * DEG), Math.cos(ra * DEG) * Math.cos(e)) * RAD);
   }
 
-  const cusps = new Array<number>(12);
-  cusps[0] = ASC;
-  cusps[3] = IC;
-  cusps[6] = DSC;
-  cusps[9] = MC;
+  const offset = astro === 'jyotish' ? ayanamsa(T) : 0;
+  const ascAdj = normalize(ASC - offset);
+  const mcAdj = normalize(MC - offset);
 
-  // Upper hemisphere: MC ↔ ASC (east) and MC ↔ DSC (west)
-  cusps[10] = placCusp(1 / 3, 'mc_asc');  // H11
-  cusps[11] = placCusp(2 / 3, 'mc_asc');  // H12
-  cusps[8]  = placCusp(1 / 3, 'mc_dsc');  // H9
-  cusps[7]  = placCusp(2 / 3, 'mc_dsc');  // H8
+  let cusps: number[];
 
-  // Lower hemisphere: IC ↔ DSC (west) and IC ↔ ASC (east)
-  cusps[2] = placCusp(1 / 3, 'ic_dsc');   // H3
-  cusps[1] = placCusp(2 / 3, 'ic_dsc');   // H2
-  cusps[4] = placCusp(1 / 3, 'ic_asc');   // H5
-  cusps[5] = placCusp(2 / 3, 'ic_asc');   // H6
+  if (astro === 'jyotish') {
+    // Whole Sign: 1st house = entire sign containing ASC
+    const firstSign = Math.floor(ascAdj / 30) * 30;
+    cusps = Array.from({ length: 12 }, (_, i) => normalize(firstSign + i * 30));
+  } else {
+    // Placidus
+    const raw = new Array<number>(12);
+    raw[0] = ASC;
+    raw[3] = IC;
+    raw[6] = DSC;
+    raw[9] = MC;
 
-  // Sidereal offset
-  const offset = system === 'sidereal' ? ayanamsa(T) : 0;
+    raw[10] = placCusp(1 / 3, 'mc_asc');
+    raw[11] = placCusp(2 / 3, 'mc_asc');
+    raw[8]  = placCusp(1 / 3, 'mc_dsc');
+    raw[7]  = placCusp(2 / 3, 'mc_dsc');
 
-  return {
-    ascendant: normalize(ASC - offset),
-    mc: normalize(MC - offset),
-    cusps: cusps.map(c => normalize(c - offset)),
-  };
+    raw[2] = placCusp(1 / 3, 'ic_dsc');
+    raw[1] = placCusp(2 / 3, 'ic_dsc');
+    raw[4] = placCusp(1 / 3, 'ic_asc');
+    raw[5] = placCusp(2 / 3, 'ic_asc');
+
+    cusps = raw.map(c => normalize(c - offset));
+  }
+
+  return { ascendant: ascAdj, mc: mcAdj, cusps };
 }
 
 export const zodiacSigns = [
