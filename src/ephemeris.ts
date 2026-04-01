@@ -8,11 +8,11 @@ function normalize(angle: number): number {
   return ((angle % 360) + 360) % 360;
 }
 
-// Julian Day Number from Date
+// Julian Day Number from Date (uses UTC)
 function toJD(date: Date): number {
-  const y = date.getFullYear();
-  const m = date.getMonth() + 1;
-  const d = date.getDate() + date.getHours() / 24 + date.getMinutes() / 1440;
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth() + 1;
+  const d = date.getUTCDate() + date.getUTCHours() / 24 + date.getUTCMinutes() / 1440;
   let Y = y, M = m;
   if (M <= 2) { Y -= 1; M += 12; }
   const A = Math.floor(Y / 100);

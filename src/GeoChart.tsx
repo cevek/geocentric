@@ -30,12 +30,54 @@ function angleDiff(from: number, to: number): number {
   return ((to - from) % 360 + 540) % 360 - 180;
 }
 
-// Default: Moscow
-const DEFAULT_LAT = 55.7558;
-const DEFAULT_LON = 37.6173;
+interface GeoSettings {
+  lat: number;
+  lon: number;
+  utcOffset: number; // hours, e.g. 3 for UTC+3
+}
+
+function loadSettings(): GeoSettings {
+  try {
+    const saved = localStorage.getItem('geo-settings');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  // Default: detect browser tz, Moscow coords
+  return { lat: 55.76, lon: 37.62, utcOffset: -new Date().getTimezoneOffset() / 60 };
+}
+
+function saveSettings(s: GeoSettings) {
+  try { localStorage.setItem('geo-settings', JSON.stringify(s)); } catch {}
+}
+
+// Build a UTC Date from "local" components in the selected timezone
+function toUTCDate(year: number, month: number, day: number, hour: number, minute: number, utcOffset: number): Date {
+  return new Date(Date.UTC(year, month, day, hour - utcOffset, minute));
+}
+
+// Extract "local" components from a UTC Date in the selected timezone
+function fromUTCDate(d: Date, utcOffset: number) {
+  const local = new Date(d.getTime() + utcOffset * 3600000);
+  return {
+    year: local.getUTCFullYear(),
+    month: local.getUTCMonth(),
+    day: local.getUTCDate(),
+    hour: local.getUTCHours(),
+    minute: local.getUTCMinutes(),
+  };
+}
+
+const TZ_OPTIONS: number[] = [];
+for (let i = -12; i <= 14; i++) TZ_OPTIONS.push(i);
+function fmtTz(offset: number) {
+  const sign = offset >= 0 ? '+' : '';
+  return `UTC${sign}${offset}`;
+}
 
 export default function GeoChart() {
-  const [date, setDate] = useState(() => new Date());
+  const [settings, setSettingsState] = useState(loadSettings);
+  const setSettings = (s: GeoSettings) => { setSettingsState(s); saveSettings(s); };
+
+  const [date, setDate] = useState(() => new Date()); // always UTC internally
   const [zodiacSystem, setZodiacSystem] = useState<ZodiacSystem>('tropical');
   const [showHouses, setShowHouses] = useState(false);
   const [positions, setPositions] = useState<PlanetPosition[]>([]);
@@ -47,7 +89,8 @@ export default function GeoChart() {
   const initializedRef = useRef(false);
 
   const moonPhase = calculateMoonPhase(date);
-  const houses = calculateHouses(date, DEFAULT_LAT, DEFAULT_LON, zodiacSystem);
+  const houses = calculateHouses(date, settings.lat, settings.lon, zodiacSystem);
+  const local = fromUTCDate(date, settings.utcOffset);
 
   useEffect(() => {
     const newPositions = calculatePositions(date, zodiacSystem);
@@ -98,19 +141,11 @@ export default function GeoChart() {
   }, [positions, houses]);
 
   const changeDay = useCallback((delta: number) => {
-    setDate(prev => {
-      const d = new Date(prev);
-      d.setDate(d.getDate() + delta);
-      return d;
-    });
+    setDate(prev => new Date(prev.getTime() + delta * 86400000));
   }, []);
 
   const changeHour = useCallback((delta: number) => {
-    setDate(prev => {
-      const d = new Date(prev);
-      d.setHours(d.getHours() + delta);
-      return d;
-    });
+    setDate(prev => new Date(prev.getTime() + delta * 3600000));
   }, []);
 
   useEffect(() => {
@@ -124,30 +159,27 @@ export default function GeoChart() {
     return () => window.removeEventListener('keydown', handler);
   }, [changeDay]);
 
-  const formatDateEU = (d: Date) => {
-    const day = String(d.getDate()).padStart(2, '0');
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    return `${day}.${m}.${d.getFullYear()}`;
+  const fmtDateEU = () => {
+    const { year, month, day } = local;
+    return `${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.${year}`;
   };
 
-  const formatTime = (d: Date) =>
-    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const fmtTime = () =>
+    `${String(local.hour).padStart(2, '0')}:${String(local.minute).padStart(2, '0')}`;
 
-  const [dateText, setDateText] = useState(formatDateEU(date));
-  const [timeText, setTimeText] = useState(formatTime(date));
+  const [dateText, setDateText] = useState(fmtDateEU());
+  const [timeText, setTimeText] = useState(fmtTime());
 
-  // Keep text in sync when date changes via arrows/keyboard
   useEffect(() => {
-    setDateText(formatDateEU(date));
-    setTimeText(formatTime(date));
-  }, [date]);
+    setDateText(fmtDateEU());
+    setTimeText(fmtTime());
+  }, [date, settings.utcOffset]);
 
   const commitDate = (val: string) => {
     const match = val.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
     if (match) {
       const [, dd, mm, yyyy] = match.map(Number);
-      const d = new Date(date);
-      d.setFullYear(yyyy, mm - 1, dd);
+      const d = toUTCDate(yyyy, mm - 1, dd, local.hour, local.minute, settings.utcOffset);
       if (!isNaN(d.getTime())) setDate(d);
     }
   };
@@ -157,8 +189,7 @@ export default function GeoChart() {
     if (match) {
       const [, hh, mm] = match.map(Number);
       if (hh >= 0 && hh < 24 && mm >= 0 && mm < 60) {
-        const d = new Date(date);
-        d.setHours(hh, mm);
+        const d = toUTCDate(local.year, local.month, local.day, hh, mm, settings.utcOffset);
         setDate(d);
       }
     }
@@ -240,6 +271,18 @@ export default function GeoChart() {
             <option value="tropical">Тропический</option>
             <option value="sidereal">Сидерический</option>
           </select>
+          <select className="zodiac-select" value={settings.utcOffset}
+            onChange={e => setSettings({ ...settings, utcOffset: Number(e.target.value) })}>
+            {TZ_OPTIONS.map(tz => (
+              <option key={tz} value={tz}>{fmtTz(tz)}</option>
+            ))}
+          </select>
+          <div className="coords-row">
+            <input className="coord-input" value={settings.lat} type="number" step="0.01"
+              onChange={e => setSettings({ ...settings, lat: Number(e.target.value) })} />
+            <input className="coord-input" value={settings.lon} type="number" step="0.01"
+              onChange={e => setSettings({ ...settings, lon: Number(e.target.value) })} />
+          </div>
         </div>
       </div>
 
@@ -315,11 +358,15 @@ export default function GeoChart() {
           {/* House cusps */}
           {showHouses && (displayCusps.length ? displayCusps : houses.cusps).map((cusp, i) => {
             const angle = toAngle(cusp);
+            const nextCusp = (displayCusps.length ? displayCusps : houses.cusps)[(i + 1) % 12];
+            const midAngle = toAngle((cusp + nextCusp) / 2 + (Math.abs(nextCusp - cusp) > 180 ? 180 : 0));
             const isAxis = i === 0 || i === 3 || i === 6 || i === 9;
             const axisLabel: Record<number, string> = { 0: 'ASC', 3: 'IC', 6: 'DSC', 9: 'MC' };
             const innerEnd = earthR + 4;
-            const houseNumR = earthR + 14;
-            const axisLabelR = zodiacInner - 10;
+            const houseNumR = zodiacInner - 14;
+            // Offset axis label perpendicular to the line
+            const perpOffset = 10;
+            const perpAngle = angle + Math.PI / 2;
             return (
               <g key={`house-${i}`}>
                 <line
@@ -332,22 +379,24 @@ export default function GeoChart() {
                   strokeWidth={isAxis ? 2 : 1}
                   strokeDasharray={isAxis ? 'none' : '3 4'}
                 />
+                {/* House number centered between cusp lines, near zodiac edge */}
                 <text
-                  x={cx + houseNumR * Math.cos(angle)}
-                  y={cy + houseNumR * Math.sin(angle)}
+                  x={cx + houseNumR * Math.cos(midAngle)}
+                  y={cy + houseNumR * Math.sin(midAngle)}
                   textAnchor="middle" dominantBaseline="central"
-                  fill={isAxis ? '#ff8844' : '#8888aa'}
-                  fontSize={7} fontWeight={isAxis ? '700' : '400'}
-                  opacity={isAxis ? 0.8 : 0.5}
+                  fill="#ff8844"
+                  fontSize={11} fontWeight="600"
+                  opacity={0.8}
                 >
                   {HOUSE_LABELS[i]}
                 </text>
+                {/* Axis label offset to side of the line */}
                 {isAxis && (
                   <text
-                    x={cx + axisLabelR * Math.cos(angle)}
-                    y={cy + axisLabelR * Math.sin(angle)}
+                    x={cx + (zodiacInner - 10) * Math.cos(angle) + perpOffset * Math.cos(perpAngle)}
+                    y={cy + (zodiacInner - 10) * Math.sin(angle) + perpOffset * Math.sin(perpAngle)}
                     textAnchor="middle" dominantBaseline="central"
-                    fill="#ff8844" fontSize={8} fontWeight="700" opacity={0.7}
+                    fill="#ff8844" fontSize={11} fontWeight="700" opacity={0.85}
                   >
                     {axisLabel[i]}
                   </text>
