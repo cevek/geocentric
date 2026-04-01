@@ -372,11 +372,11 @@ export function calculateMoonPhase(date: Date): MoonPhaseInfo {
   return { phase, illumination, name, emoji };
 }
 
-// Houses calculation (Equal House system from Ascendant)
+// Houses calculation (Placidus system)
 export interface HouseCusps {
-  ascendant: number;  // ASC - 1st house cusp
-  mc: number;         // MC - 10th house cusp
-  cusps: number[];    // 12 house cusps in degrees
+  ascendant: number;
+  mc: number;
+  cusps: number[];  // 12 house cusps in degrees
 }
 
 export function calculateHouses(date: Date, lat: number, lon: number, system: ZodiacSystem = 'tropical'): HouseCusps {
@@ -390,36 +390,92 @@ export function calculateHouses(date: Date, lat: number, lon: number, system: Zo
     - T * T * T / 38710000;
   GMST = normalize(GMST);
 
-  // Local Sidereal Time
-  const LST = normalize(GMST + lon);
-  const LST_rad = LST * DEG;
+  // RAMC = Local Sidereal Time
+  const RAMC = normalize(GMST + lon);
+  const RAMC_rad = RAMC * DEG;
 
   // Obliquity of the ecliptic
-  const obliquity = (23.4393 - 0.0130 * T) * DEG;
+  const e = (23.4393 - 0.0130 * T) * DEG;
+  const phi = lat * DEG;
 
-  // MC (Midheaven) — RAMC = LST, then convert to ecliptic
-  const MC = normalize(Math.atan2(Math.sin(LST_rad), Math.cos(LST_rad) * Math.cos(obliquity)) * RAD);
+  // MC (Midheaven): ecliptic longitude on the upper meridian
+  const MC = normalize(Math.atan2(Math.sin(RAMC_rad), Math.cos(RAMC_rad) * Math.cos(e)) * RAD);
 
-  // Ascendant
-  const latRad = lat * DEG;
+  // ASC (Ascendant): ecliptic longitude rising on eastern horizon
   const ASC = normalize(Math.atan2(
-    Math.cos(LST_rad),
-    -(Math.sin(LST_rad) * Math.cos(obliquity) + Math.tan(latRad) * Math.sin(obliquity))
+    Math.cos(RAMC_rad),
+    -(Math.sin(RAMC_rad) * Math.cos(e) + Math.tan(phi) * Math.sin(e))
   ) * RAD);
+
+  const IC = normalize(MC + 180);
+  const DSC = normalize(ASC + 180);
+
+  // Placidus cusp: iteratively find ecliptic longitude where
+  // hour angle = required fraction of the semi-arc
+  // sector: which quadrant between the 4 angles
+  function placCusp(frac: number, sector: 'mc_asc' | 'mc_dsc' | 'ic_asc' | 'ic_dsc'): number {
+    // Initial guess (equal-house-like)
+    let ra: number;
+    switch (sector) {
+      case 'mc_asc': ra = normalize(RAMC + frac * 90); break;
+      case 'mc_dsc': ra = normalize(RAMC - frac * 90); break;
+      case 'ic_asc': ra = normalize(RAMC + 180 + frac * 90); break;
+      case 'ic_dsc': ra = normalize(RAMC + 180 - frac * 90); break;
+    }
+
+    for (let iter = 0; iter < 50; iter++) {
+      // RA → ecliptic longitude on the ecliptic
+      const lonRad = Math.atan2(Math.sin(ra * DEG), Math.cos(ra * DEG) * Math.cos(e));
+      // Declination of this ecliptic point
+      const dec = Math.asin(Math.sin(e) * Math.sin(lonRad));
+
+      // Diurnal semi-arc
+      const td = Math.tan(phi) * Math.tan(dec);
+      const dsa = Math.abs(td) >= 1 ? (td > 0 ? 180 : 0) : Math.acos(-td) * RAD;
+      const nsa = 180 - dsa;
+
+      let target: number;
+      switch (sector) {
+        case 'mc_asc': target = normalize(RAMC + frac * dsa); break;
+        case 'mc_dsc': target = normalize(RAMC - frac * dsa); break;
+        case 'ic_asc': target = normalize(RAMC + 180 + frac * nsa); break;
+        case 'ic_dsc': target = normalize(RAMC + 180 - frac * nsa); break;
+      }
+
+      const diff = ((target - ra + 540) % 360) - 180;
+      if (Math.abs(diff) < 0.0001) break;
+      ra = normalize(ra + diff);
+    }
+
+    return normalize(Math.atan2(Math.sin(ra * DEG), Math.cos(ra * DEG) * Math.cos(e)) * RAD);
+  }
+
+  const cusps = new Array<number>(12);
+  cusps[0] = ASC;
+  cusps[3] = IC;
+  cusps[6] = DSC;
+  cusps[9] = MC;
+
+  // Upper hemisphere: MC ↔ ASC (east) and MC ↔ DSC (west)
+  cusps[10] = placCusp(1 / 3, 'mc_asc');  // H11
+  cusps[11] = placCusp(2 / 3, 'mc_asc');  // H12
+  cusps[8]  = placCusp(1 / 3, 'mc_dsc');  // H9
+  cusps[7]  = placCusp(2 / 3, 'mc_dsc');  // H8
+
+  // Lower hemisphere: IC ↔ DSC (west) and IC ↔ ASC (east)
+  cusps[2] = placCusp(1 / 3, 'ic_dsc');   // H3
+  cusps[1] = placCusp(2 / 3, 'ic_dsc');   // H2
+  cusps[4] = placCusp(1 / 3, 'ic_asc');   // H5
+  cusps[5] = placCusp(2 / 3, 'ic_asc');   // H6
 
   // Sidereal offset
   const offset = system === 'sidereal' ? ayanamsa(T) : 0;
 
-  const ascAdj = normalize(ASC - offset);
-  const mcAdj = normalize(MC - offset);
-
-  // Equal house system: each house = ASC + (n * 30°)
-  const cusps: number[] = [];
-  for (let i = 0; i < 12; i++) {
-    cusps.push(normalize(ascAdj + i * 30));
-  }
-
-  return { ascendant: ascAdj, mc: mcAdj, cusps };
+  return {
+    ascendant: normalize(ASC - offset),
+    mc: normalize(MC - offset),
+    cusps: cusps.map(c => normalize(c - offset)),
+  };
 }
 
 export const zodiacSigns = [
