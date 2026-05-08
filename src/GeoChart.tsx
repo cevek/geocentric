@@ -461,10 +461,12 @@ export default function GeoChart() {
         }).join('')}
 {showHouses ? (() => {
   const cusps = displayCusps.length ? displayCusps : houses.cusps;
-  const { deg: aDeg, min: aMin, sign: aSign } = formatAstroPos(cusps[0]);
-  const { deg: mDeg, min: mMin, sign: mSign } = formatAstroPos(cusps[9]);
-  return `ASC       ${aDeg}°${String(aMin).padStart(2,'0')}'`.padStart(7) + ` ${aSign.symbol} ${aSign.name}\n` +
-         `MC        ${mDeg}°${String(mMin).padStart(2,'0')}'`.padStart(7) + ` ${mSign.symbol} ${mSign.name}\n`;
+  const labels = ['ASC','II','III','IC','V','VI','DSC','VIII','IX','MC','XI','XII'];
+  return '\n' + cusps.map((c, i) => {
+    const { deg, min, sign } = formatAstroPos(c);
+    const lbl = labels[i].padEnd(5);
+    return `${lbl} ${deg}°${String(min).padStart(2,'0')}'`.padStart(7) + ` ${sign.symbol} ${sign.name}`;
+  }).join('\n') + '\n';
 })() : ''}</pre>
       </div>
     </div>
