@@ -36,17 +36,42 @@ interface GeoSettings {
   utcOffset: number; // hours, e.g. 3 for UTC+3
 }
 
-function loadSettings(): GeoSettings {
-  try {
-    const saved = localStorage.getItem('geo-settings');
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  // Default: detect browser tz, Moscow coords
-  return { lat: 55.76, lon: 37.62, utcOffset: -new Date().getTimezoneOffset() / 60 };
+interface UrlState {
+  date: Date;
+  settings: GeoSettings;
+  astroSystem: AstroSystem;
+  showHouses: boolean;
 }
 
-function saveSettings(s: GeoSettings) {
-  try { localStorage.setItem('geo-settings', JSON.stringify(s)); } catch {}
+function parseUrl(): UrlState {
+  const p = new URLSearchParams(window.location.search);
+  const t = p.get('t');
+  const parsedDate = t ? new Date(t) : null;
+  const sys = p.get('sys');
+  const lat = p.get('lat');
+  const lon = p.get('lon');
+  const tz = p.get('tz');
+  return {
+    date: parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : new Date(),
+    settings: {
+      lat: lat !== null ? Number(lat) : 55.76,
+      lon: lon !== null ? Number(lon) : 37.62,
+      utcOffset: tz !== null ? Number(tz) : -new Date().getTimezoneOffset() / 60,
+    },
+    astroSystem: sys === 'sidereal-placidus' || sys === 'jyotish' ? sys : 'western',
+    showHouses: p.get('houses') === '1',
+  };
+}
+
+function writeUrl(s: UrlState) {
+  const p = new URLSearchParams();
+  p.set('t', s.date.toISOString().replace(/:\d{2}\.\d{3}Z$/, 'Z'));
+  p.set('lat', String(s.settings.lat));
+  p.set('lon', String(s.settings.lon));
+  p.set('tz', String(s.settings.utcOffset));
+  p.set('sys', s.astroSystem);
+  if (s.showHouses) p.set('houses', '1');
+  history.replaceState(null, '', '?' + p.toString() + window.location.hash);
 }
 
 // Build a UTC Date from "local" components in the selected timezone
@@ -74,12 +99,19 @@ function fmtTz(offset: number) {
 }
 
 export default function GeoChart() {
-  const [settings, setSettingsState] = useState(loadSettings);
-  const setSettings = (s: GeoSettings) => { setSettingsState(s); saveSettings(s); };
+  const [settings, setSettings] = useState<GeoSettings>(() => parseUrl().settings);
+  const [date, setDate] = useState(() => parseUrl().date); // always UTC internally
+  const [astroSystem, setAstroSystem] = useState<AstroSystem>(() => parseUrl().astroSystem);
+  const [showHouses, setShowHouses] = useState(() => parseUrl().showHouses);
 
-  const [date, setDate] = useState(() => new Date()); // always UTC internally
-  const [astroSystem, setAstroSystem] = useState<AstroSystem>('western');
-  const [showHouses, setShowHouses] = useState(false);
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    writeUrl({ date, settings, astroSystem, showHouses });
+  }, [date, settings, astroSystem, showHouses]);
   const [positions, setPositions] = useState<PlanetPosition[]>([]);
   const displayLonsRef = useRef<number[]>([]);
   const [displayLons, setDisplayLons] = useState<number[]>([]);
